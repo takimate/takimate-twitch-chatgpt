@@ -33,16 +33,6 @@ const messages = [
     {role: "system", content: "You are a helpful Twitch Chatbot."}
 ];
 
-let mao_res = "wait ~25sec > !gptr"
-//save response:
-mao_res = sliced_agent_response
-res.send(sliced_agent_response)
-
-//repeat response:
-app.all('/repeat/', (req, res) => {
-res.send(mao_res)
-})
-
 console.log("GPT_MODE is " + GPT_MODE)
 console.log("History length is " + HISTORY_LENGTH)
 console.log("OpenAI API Key:" + OPENAI_API_KEY)
