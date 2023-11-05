@@ -118,18 +118,21 @@ if (GPT_MODE === 'CHAT') {
   });
 }
 
+const openai = axios.create({
+  baseURL: 'https://api.openai.com/v1',
+  headers: {
+    Authorization: `Bearer ${OPENAI_API_KEY}`,
+  },
+});
+
+// Configure axios-retry to automatically retry failed requests
+axiosRetry(openai, {
+  retries: 3, // You can adjust the number of retries
+  retryDelay: axiosRetry.exponentialDelay,
+});
+
 app.get('/gpt/:text', async (req, res) => {
   const text = req.params.text;
-  const configuration = new Configuration({
-    apiKey: OPENAI_API_KEY,
-  });
-  const openai = axios.create({
-    baseURL: 'https://api.openai.com/v1',
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-  });
-  axiosRetry(openai, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
 
   if (GPT_MODE === 'CHAT') {
     processChatRequest(text, res, openai);
