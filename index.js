@@ -78,6 +78,7 @@ async function processPromptRequest(text, res, openai) {
     frequency_penalty: 0,
     presence_penalty: 0,
   });
+  
 const openai = axios.create({
   baseURL: 'https://api.openai.com/v1',
   headers: {
