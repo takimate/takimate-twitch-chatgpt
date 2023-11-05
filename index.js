@@ -1,83 +1,86 @@
 const express = require('express');
 const request = require('request');
-const app = express();
 const fs = require('fs');
 const { promisify } = require('util');
-const { Configuration, OpenAIApi } = require("openai");
-
-const readFile = promisify(fs.readFile);
-
-app.use(express.json({ extended: true, limit: '1mb' });
+const { Configuration, OpenAIApi } = require('openai');
+const app = express();
 
 // Load environment variables with default values
-const GPT_MODE = process.env.GPT_MODE || "CHAT";
-const HISTORY_LENGTH = process.env.HISTORY_LENGTH || 5;
+const GPT_MODE = process.env.GPT_MODE || 'CHAT';
+const HISTORY_LENGTH = parseInt(process.env.HISTORY_LENGTH) || 5;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const MODEL_NAME = process.env.MODEL_NAME || "gpt-3.5-turbo";
+const MODEL_NAME = process.env.MODEL_NAME || 'gpt-3.5-turbo';
+
+if (!OPENAI_API_KEY) {
+    console.log('No OPENAI_API_KEY found. Please set it as an environment variable.');
+    process.exit(1); // Exit the app if API key is missing
+}
 
 // Initialize global variables
 const MAX_LENGTH = 399;
-let fileContext = "You are a helpful Twitch Chatbot.";
-let lastUserMessage = "";
+let fileContext = 'You are a helpful Twitch Chatbot.';
+let lastUserMessage = '';
 
-const messages = [{ role: "system", content: fileContext }];
+const messages = [{ role: 'system', content: fileContext }];
 
-console.log(`GPT_MODE is ${GPT_MODE}`);
-console.log(`History length is ${HISTORY_LENGTH}`);
-console.log(`OpenAI API Key: ${OPENAI_API_KEY}`);
-console.log(`Model Name: ${MODEL_NAME}`);
+console.log('GPT_MODE is ' + GPT_MODE);
+console.log('History length is ' + HISTORY_LENGTH);
+console.log('OpenAI API Key: ' + OPENAI_API_KEY);
+console.log('Model Name: ' + MODEL_NAME);
+
+app.use(express.json({ extended: true, limit: '1mb' }));
 
 app.all('/', (req, res) => {
-    console.log("Just got a request!");
+    console.log('Just got a request!');
     res.send('Yo!');
 });
 
-if (GPT_MODE === "CHAT") {
-    readFile("./file_context.txt", 'utf8')
-        .then(data => {
-            console.log("Reading context file and adding it as a system level message for the agent.");
+if (GPT_MODE === 'CHAT') {
+    fs.readFile('./file_context.txt', 'utf8', (err, data) => {
+        if (!err) {
+            console.log('Reading context file and adding it as a system-level message for the agent.');
             messages[0].content = data;
-        })
-        .catch(err => {
-            console.error(err);
-        });
+        } else {
+            console.error('Error reading file_context.txt:', err);
+        }
+    });
 } else {
-    readFile("./file_context.txt", 'utf8')
-        .then(data => {
-            console.log("Reading context file and adding it in front of user prompts:");
+    fs.readFile('./file_context.txt', 'utf8', (err, data) => {
+        if (!err) {
+            console.log('Reading context file and adding it in front of user prompts:');
             fileContext = data;
             console.log(fileContext);
-        })
-        .catch(err => {
-            console.error(err);
-        });
+        } else {
+            console.error('Error reading file_context.txt:', err);
+        }
+    });
 }
 
 app.get('/gpt/:text', async (req, res) => {
     const text = req.params.text;
-
     const configuration = new Configuration({
         apiKey: OPENAI_API_KEY,
     });
 
     const openai = new OpenAIApi(configuration);
 
-    if (GPT_MODE === "CHAT") {
-        // Chat mode execution
-        messages.push({ role: "user", content: text });
+    if (GPT_MODE === 'CHAT') {
+        // CHAT MODE EXECUTION
+        messages.push({ role: 'user', content: text);
 
         if (messages.length > HISTORY_LENGTH * 2 + 1) {
             console.log('Message amount in history exceeded. Removing oldest user and agent messages.');
             messages.splice(1, 2);
         }
 
-        console.log("Messages:");
+        console.log('Conversations in History: ' + (messages.length / 2 - 1) + '/' + HISTORY_LENGTH);
+        console.log('Messages:');
         console.dir(messages);
-        console.log(`User Input: ${text}`);
+        console.log('User Input: ' + text);
 
         const response = await openai.createChatCompletion({
             model: MODEL_NAME,
-            messages,
+            messages: messages,
             temperature: 0.7,
             max_tokens: 256,
             top_p: 0.95,
@@ -87,24 +90,27 @@ app.get('/gpt/:text', async (req, res) => {
 
         if (response.data.choices) {
             let agentResponse = response.data.choices[0].message.content;
-            messages.push({ role: "assistant", content: agentResponse });
+            messages.push({ role: 'assistant', content: agentResponse);
 
-            let slicedAgentResponse = agentResponse.length > MAX_LENGTH
-                ? agentResponse.slice(0, MAX_LENGTH)
-                : agentResponse;
+            let slicedAgentResponse = agentResponse.slice(0, MAX_LENGTH);
 
+            if (agentResponse.length > MAX_LENGTH) {
+                console.log('Agent answer exceeds Twitch chat limit. Slicing to first 399 characters.');
+                lastUserMessage = agentResponse.slice(MAX_LENGTH);
+                console.log('Sliced Agent answer: ' + agentResponse);
+            }
             res.send(slicedAgentResponse);
         } else {
-            res.send("Something went wrong. Try again later!");
+            res.send('Something went wrong. Try again later!');
         }
     } else {
-        // Prompt mode execution
+        // PROMPT MODE EXECUTION
         const prompt = `${fileContext}\n\nQ:${text}\nA:`;
-        console.log(`User Input: ${text}`);
+        console.log('User Input: ' + text);
 
         const response = await openai.createCompletion({
-            model: "text-davinci-003",
-            prompt,
+            model: 'text-davinci-003',
+            prompt: prompt,
             temperature: 0.7,
             max_tokens: 256,
             top_p: 0.95,
@@ -115,38 +121,33 @@ app.get('/gpt/:text', async (req, res) => {
         if (response.data.choices) {
             let agentResponse = response.data.choices[0].text;
 
-            let slicedAgentResponse = agentResponse.length > MAX_LENGTH
-                ? agentResponse.slice(0, MAX_LENGTH)
-                : agentResponse;
+            let slicedAgentResponse = agentResponse.slice(0, MAX_LENGTH);
 
+            if (agentResponse.length > MAX_LENGTH) {
+                console.log('Agent answer exceeds Twitch chat limit. Slicing to first 399 characters.');
+                lastUserMessage = agentResponse.slice(MAX_LENGTH);
+                console.log('Sliced Agent answer: ' + agentResponse);
+            }
             res.send(slicedAgentResponse);
         } else {
-            res.send("Something went wrong. Try again later!");
+            res.send('Something went wrong. Try again later!');
         }
     }
 });
 
 app.all('/continue/', (req, res) => {
     console.log(lastUserMessage);
-    console.log("Just got a continue request!");
+    console.log('Just got a continue request!');
 
     if (lastUserMessage.length > 0) {
-        let newUserMessage = lastUserMessage;
-
-        if (lastUserMessage.length > MAX_LENGTH) {
-            newMessage = lastUserMessage.slice(0, MAX_LENGTH);
-        }
-
+        let newuserMessage = lastUserMessage.slice(0, MAX_LENGTH);
         lastUserMessage = lastUserMessage.slice(MAX_LENGTH);
 
-        console.log(`Sliced Agent answer: ${lastUserMessage}`);
-        res.send(newUserMessage);
+        console.log('Sliced Agent answer: ' + lastUserMessage);
+        res.send(newuserMessage);
     } else {
-        res.send("No message to continue. Please send a new message first.");
+        res.send('No message to continue. Please send a new message first.');
     }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-});
+app.listen(process.env.PORT || 3000);
