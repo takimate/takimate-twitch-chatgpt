@@ -1,6 +1,8 @@
 const express = require('express');
 const { Configuration, OpenAIApi } = require('openai');
 const fs = require('fs').promises;
+const axios = require('axios');
+const axiosRetry = require('axios-retry');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -76,7 +78,18 @@ async function processPromptRequest(text, res, openai) {
     frequency_penalty: 0,
     presence_penalty: 0,
   });
+const openai = axios.create({
+  baseURL: 'https://api.openai.com/v1',
+  headers: {
+    Authorization: `Bearer ${OPENAI_API_KEY}`,
+  },
+});
 
+// Configure axios-retry to automatically retry failed requests
+axiosRetry(openai, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
+
+// Use openai for making API requests
+  
   if (response.data.choices) {
     let agent_response = response.data.choices[0].text;
     console.log('Agent answer: ' + agent_response);
