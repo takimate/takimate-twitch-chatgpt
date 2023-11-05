@@ -40,27 +40,32 @@ async function processChatRequest(text, res, openai) {
   console.dir(messages);
   console.log('User Input: ' + text);
 
-  const response = await openai.createChatCompletion({
-    model: MODEL_NAME,
-    messages,
-    temperature: 0.7,
-    max_tokens: 256,
-    top_p: 0.95,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-  });
+  try {
+    const response = await openai.post('/completions', {
+      model: MODEL_NAME,
+      messages,
+      temperature: 0.7,
+      max_tokens: 256,
+      top_p: 0.95,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    });
 
-  if (response.data.choices) {
-    let agent_response = response.data.choices[0].message.content;
+    if (response.data.choices) {
+      let agent_response = response.data.choices[0].message.content;
 
-    console.log('Agent answer: ' + agent_response);
-    messages.push({ role: 'assistant', content: agent_response });
+      console.log('Agent answer: ' + agent_response);
+      messages.push({ role: 'assistant', content: agent_response });
 
-    let sliced_agent_response = agent_response.slice(0, MAX_LENGTH);
-    last_user_message = agent_response.slice(MAX_LENGTH);
-    res.send(sliced_agent_response);
-  } else {
-    res.send('Something went wrong. Try again later!');
+      let sliced_agent_response = agent_response.slice(0, MAX_LENGTH);
+      last_user_message = agent_response.slice(MAX_LENGTH);
+      res.send(sliced_agent_response);
+    } else {
+      res.send('Something went wrong. Try again later!');
+    }
+  } catch (err) {
+    console.error('Error making OpenAI API request:', err);
+    res.send('Failed to connect to the remote server. Please try again later.');
   }
 }
 
@@ -69,41 +74,34 @@ async function processPromptRequest(text, res, openai) {
 
   console.log('User Input: ' + text);
 
-  const response = await openai.createCompletion({
-    model: 'text-davinci-003',
-    prompt,
-    temperature: 0.7,
-    max_tokens: 256,
-    top_p: 0.95,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-  });
-  
-const openai = axios.create({
-  baseURL: 'https://api.openai.com/v1',
-  headers: {
-    Authorization: `Bearer ${OPENAI_API_KEY}`,
-  },
-});
+  try {
+    const response = await openai.post('/completions', {
+      model: 'text-davinci-003',
+      prompt,
+      temperature: 0.7,
+      max_tokens: 256,
+      top_p: 0.95,
+      frequency_penalty: 0,
+      presence_penalty: 0,
+    });
 
-// Configure axios-retry to automatically retry failed requests
-axiosRetry(openai, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
+    if (response.data.choices) {
+      let agent_response = response.data.choices[0].text;
+      console.log('Agent answer: ' + agent_response);
 
-// Use openai for making API requests
-  
-  if (response.data.choices) {
-    let agent_response = response.data.choices[0].text;
-    console.log('Agent answer: ' + agent_response);
-
-    let sliced_agent_response = agent_response.slice(0, MAX_LENGTH);
-    last_user_message = agent_response.slice(MAX_LENGTH);
-    res.send(sliced_agent_response);
-  } else {
-    res.send('Something went wrong. Try again later!');
+      let sliced_agent_response = agent_response.slice(0, MAX_LENGTH);
+      last_user_message = agent_response.slice(MAX_LENGTH);
+      res.send(sliced_agent_response);
+    } else {
+      res.send('Something went wrong. Try again later!');
+    }
+  } catch (err) {
+    console.error('Error making OpenAI API request:', err);
+    res.send('Failed to connect to the remote server. Please try again later.');
   }
 }
 
-app.use(express.json({ extended: true, limit: '1mb' }));
+app.use(express.json({ extended: true, limit: '1mb' });
 
 app.all('/', (req, res) => {
   console.log('Just got a request!');
@@ -125,7 +123,13 @@ app.get('/gpt/:text', async (req, res) => {
   const configuration = new Configuration({
     apiKey: OPENAI_API_KEY,
   });
-  const openai = new OpenAIApi(configuration);
+  const openai = axios.create({
+    baseURL: 'https://api.openai.com/v1',
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+    },
+  });
+  axiosRetry(openai, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
 
   if (GPT_MODE === 'CHAT') {
     processChatRequest(text, res, openai);
