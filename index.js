@@ -1,34 +1,11 @@
 const express = require('express');
+const request = require('request'); // Use the 'request' library
 const app = express();
 const fs = require('fs');
 const { promisify } = require('util');
 const readFile = promisify(fs.readFile);
-const request = require('request');
-const axios = require('axios');
-const axiosRetry = require('axios-retry');
 
-// load env variables
-const GPT_MODE = process.env.GPT_MODE || 'CHAT';
-const HISTORY_LENGTH = parseInt(process.env.HISTORY_LENGTH, 10) || 5;
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const MODEL_NAME = process.env.MODEL_NAME || 'gpt-3.5-turbo';
-
-if (!OPENAI_API_KEY) {
-    console.log('No OPENAI_API_KEY found. Please set it as an environment variable.');
-    process.exit(1);
-}
-
-// init global variables
-const MAX_LENGTH = 399;
-let file_context = 'You are a helpful Twitch Chatbot.';
-let last_user_message = '';
-
-const messages = [{ role: 'system', content: 'You are a helpful Twitch Chatbot.' }];
-
-console.log('GPT_MODE is ' + GPT_MODE);
-console.log('History length is ' + HISTORY_LENGTH);
-console.log('OpenAI API Key: ' + OPENAI_API_KEY);
-console.log('Model Name: ' + MODEL_NAME);
+// Your existing code for environment variables and initializations
 
 app.use(express.json({ extended: true, limit: '1mb' });
 
@@ -58,25 +35,20 @@ if (GPT_MODE === 'CHAT') {
         });
 }
 
-const openai = axios.create({
-    baseURL: 'https://api.openai.com/v1',
-    headers: {
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-    },
-});
-
-// Configure axios-retry to automatically retry failed requests
-axiosRetry(openai, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
-
-app.get('/gpt/:text', async (req, res) => {
+app.get('/gpt/:text', (req, res) => {
     const text = req.params.text;
 
-    try {
-        if (GPT_MODE === 'CHAT') {
-            // Your code for handling GPT chat requests
-            // ...
+    if (GPT_MODE === 'CHAT') {
+        // Your code for handling GPT chat requests
 
-            const response = await openai.post('/completions', {
+        const requestOptions = {
+            uri: 'https://api.openai.com/v1/completions',
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            json: {
                 model: MODEL_NAME,
                 messages,
                 temperature: 0.7,
@@ -84,16 +56,30 @@ app.get('/gpt/:text', async (req, res) => {
                 top_p: 0.95,
                 frequency_penalty: 0,
                 presence_penalty: 0,
-            });
+            },
+        };
 
-            // Your response handling code
-            // ...
+        request(requestOptions, (error, response, body) => {
+            if (error) {
+                console.error('Error while making OpenAI API request:', error);
+                res.status(500).send('Internal Server Error: Could not fulfill the request');
+            } else {
+                // Your response handling code
+                // ...
+            }
+        });
+    } else {
+        // Your code for handling GPT prompt requests
+        // ...
 
-        } else {
-            // Your code for handling GPT prompt requests
-            // ...
-
-            const response = await openai.post('/completions', {
+        const requestOptions = {
+            uri: 'https://api.openai.com/v1/completions',
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${OPENAI_API_KEY}`,
+                'Content-Type': 'application/json',
+            },
+            json: {
                 model: 'text-davinci-003',
                 prompt,
                 temperature: 0.7,
@@ -101,14 +87,18 @@ app.get('/gpt/:text', async (req, res) => {
                 top_p: 0.95,
                 frequency_penalty: 0,
                 presence_penalty: 0,
-            });
+            };
 
-            // Your response handling code
-            // ...
+            request(requestOptions, (error, response, body) => {
+                if (error) {
+                    console.error('Error while making OpenAI API request:', error);
+                    res.status(500).send('Internal Server Error: Could not fulfill the request');
+                } else {
+                    // Your response handling code
+                    // ...
+                }
+            });
         }
-    } catch (error) {
-        console.error('Error while handling GPT request:', error);
-        res.status(500).send('Internal Server Error: Could not fulfill the request');
     }
 });
 
